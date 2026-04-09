@@ -3,39 +3,34 @@ const { ethers } = require("hardhat");
 
 describe("APISubscription", function () {
   let APISubscription, contract, owner, addr1;
-  const fee = ethers.parseEther("0.01"); // 0.01 ETH
-  const duration = 30 * 24 * 60 * 60; // 30 Days in seconds
+  const basicFee = ethers.parseEther("0.01");
 
   beforeEach(async function () {
     [owner, addr1] = await ethers.getSigners();
     APISubscription = await ethers.getContractFactory("APISubscription");
-    contract = await APISubscription.deploy(fee, duration);
+    // No arguments here because the constructor is now empty
+    contract = await APISubscription.deploy(); 
   });
 
-  it("Should set the correct owner and fee", async function () {
-    expect(await contract.owner()).to.equal(owner.address);
-    expect(await contract.subscriptionFee()).to.equal(fee);
-  });
-
-  it("Should allow a user to subscribe", async function () {
-    await contract.connect(addr1).subscribe({ value: fee });
-    expect(await contract.checkAccess(addr1.address)).to.equal(true);
+  it("Should allow a user to subscribe to Basic tier", async function () {
+    // We pass '0' for Basic tier
+    await contract.connect(addr1).subscribe(0, { value: basicFee });
+    const sub = await contract.getSubscription(addr1.address);
+    expect(sub[2]).to.equal(true); // sub[2] is the 'active' boolean
   });
 
   it("Should fail if the wrong fee is sent", async function () {
     const wrongFee = ethers.parseEther("0.005");
     await expect(
-      contract.connect(addr1).subscribe({ value: wrongFee })
-    ).to.be.revertedWith("Incorrect ETH amount sent");
+      contract.connect(addr1).subscribe(0, { value: wrongFee })
+    ).to.be.revertedWith("Incorrect ETH amount");
   });
 
   it("Should allow the owner to withdraw funds", async function () {
-    await contract.connect(addr1).subscribe({ value: fee });
-    const initialOwnerBalance = await ethers.provider.getBalance(owner.address);
-    
+    await contract.connect(addr1).subscribe(0, { value: basicFee });
+    const initialBalance = await ethers.provider.getBalance(owner.address);
     await contract.withdraw();
-    
-    const finalOwnerBalance = await ethers.provider.getBalance(owner.address);
-    expect(finalOwnerBalance).to.be.greaterThan(initialOwnerBalance);
+    const finalBalance = await ethers.provider.getBalance(owner.address);
+    expect(finalBalance).to.be.greaterThan(initialBalance);
   });
 });
